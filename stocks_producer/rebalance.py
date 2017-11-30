@@ -23,9 +23,9 @@ class Rebalancer(object):
                          "date": np.int,
                          "indu_num": np.int})
 
-        self.__data_proxy__ = TFRQAlphaDataBackend()
+        __data_proxy__ = TFRQAlphaDataBackend()
         def market_dates(stk_code, day):
-            return self.__data_proxy__.market_days_from_listed(stk_code, day)
+            return __data_proxy__.market_days_from_listed(stk_code, day)
 
         self.dates = self.scores.date.unique()
         self.__stocks_set__ = self.scores["sec_ucode"].unique()
@@ -38,12 +38,13 @@ class Rebalancer(object):
                 self.stocks_days_from_listed[stk][day] = market_dates(stk, day)
         print("初始化完成上市交易日数")
         
-    def pre_trading_date(self, day):
-        return self.__data_proxy__.get_previous_trading_date(day)
+    @staticmethod
+    def pre_trading_date(day):   # 背后依赖的RQAlpha Data Proxy不支持浅拷贝，需要深拷贝或重新构建新对象
+        return TFRQAlphaDataBackend().get_previous_trading_date(day)
 
-    @property
-    def data_proxy(self):
-        return self.__data_proxy__
+    @staticmethod
+    def data_proxy():
+        return TFRQAlphaDataBackend()
 
 
 def get_stocks(day, count, level, top_down, helper):

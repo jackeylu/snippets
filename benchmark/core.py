@@ -20,15 +20,13 @@ def choose_core(period, count, start, end, level, top_down,
                   rebalancer):
     prefix = "{}_level-{}_count-{}_top_down-{}_{}-{}".format(
         period, level, count, top_down, start, end)
-    print('Run task %s (%s)...' % (prefix, os.getpid()))
+    print('Run task %s (pid %s)...' % (prefix, os.getpid()))
 
     if period is None or count is None or start is None or end is None:
         print("lack of parameters, see `--help`")
         return
 
-
     trading_dates = stkdata.trading_dates(start, end)
-    # click.echo("trading dates begin {} and end {}".format(trading_dates[0], trading_dates[-1]))
     positions = stkdata.position_perform(period,
                                          trading_dates,
                                          count,
@@ -36,26 +34,28 @@ def choose_core(period, count, start, end, level, top_down,
                                          top_down,
                                          rebalancer,
                                          stocks_getter=get_stocks)
-    # print(positions.toDf())
-    df = positions.to_df()
-    df.to_csv("raw_result/{}_positions_raw.csv".format(prefix))
-    df["date"] = pd.to_datetime(df["date"].apply(lambda x: "{}".format(x)))
-    df.set_index(keys=["date"])
+    df_positions = positions.to_df()
+    df_positions.to_csv("raw_result/{}_positions_raw.csv".format(prefix))
+    # print(os.path.abspath("raw_result/{}_positions_raw.csv".format(prefix)))
 
+    df_positions["date"] = pd.to_datetime(df_positions["date"].apply(lambda x: "{}".format(x)))
+    # df_positions.set_index(keys=["date"])
+
+    data_proxy = rebalancer.data_proxy()
     def get_pre_close_price(df):
         stock = df["stock"]
-        __start = rebalancer.data_proxy.get_previous_trading_date(df["date"])
+        __start = data_proxy.get_previous_trading_date(df["date"])
         __start = get_int_date(__start)
         try:
-            pre_close = rebalancer.data_proxy.get_price(
+            pre_close = data_proxy.get_price(
                 order_book_id=stock, start=__start, end=__start)["close"][0]
             return pre_close
         except KeyError:
             return None
 
-    df["pre_close"] = df.apply(get_pre_close_price, axis=1)
-    # df["pre_close"] = df.groupby(by="stock")["close"].shift()
-    df.to_csv("figure/{}_positions.csv".format(prefix))
+    df_positions["pre_close"] = df_positions.apply(get_pre_close_price, axis=1)
+    df_positions.to_csv("figure/{}_positions.csv".format(prefix))
+    # print(os.path.abspath("figure/{}_positions.csv".format(prefix)))
 
     bench = pd.DataFrame(data=stkdata.fetch_market_price('000001.XSHG', start, end))
     bench["datetime"] = bench["datetime"] // 1000000
@@ -72,8 +72,8 @@ def choose_core(period, count, start, end, level, top_down,
 
     for chosen_price in ["high", "close"]:
         # 涨跌幅 %
-        df["up_ratio"] = (df[chosen_price] - df["pre_close"]) * 100 / df["pre_close"]
-        index_up_ratio_diff = df[["date", "up_ratio"]].groupby(by=["date"]).mean()
+        df_positions["up_ratio"] = (df_positions[chosen_price] - df_positions["pre_close"]) * 100 / df_positions["pre_close"]
+        index_up_ratio_diff = df_positions[["date", "up_ratio"]].groupby(by=["date"]).mean()
 
         bench["up_ratio"] = (bench[chosen_price] - bench["pre_close"]) * 100 / bench["pre_close"]
         ff = pd.concat([
@@ -83,6 +83,7 @@ def choose_core(period, count, start, end, level, top_down,
                       "bench_up_ratio"]
         ff = ff.dropna(axis=0)
         ff.to_csv("figure/{}_{}_up_ratio.csv".format(chosen_price, prefix))
+        print("figure/{}_{}_up_ratio.csv".format(chosen_price, prefix))
         describe = ff["tf_index_mean_up_ratio"].describe()
 
         plt.figure()
@@ -102,6 +103,7 @@ def choose_core(period, count, start, end, level, top_down,
                     start,
                     end))
         plt.savefig("figure/{}_{}_up_ratio.png".format(chosen_price, prefix))
+        print("figure/{}_{}_up_ratio.png".format(chosen_price, prefix))
         plt.close()
     return
 

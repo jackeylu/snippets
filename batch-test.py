@@ -4,6 +4,7 @@
 # @author: ME
 # @date: 2017/11/23
 import logging.config
+import time
 import os
 from multiprocessing import Pool
 
@@ -11,9 +12,16 @@ from stocks_producer.rebalance import Rebalancer
 from benchmark.core import choose_core
 
 
+def run(var1, var2):
+    print("{}, {}".format(var1, var2))
+
+
 def multi_run():
+    start = time.time()
     logging.info('Parent process %s.' % os.getpid())
+    logging.info("准备所涉及股票交易日信息")
     rebalancer = Rebalancer()
+    logging.info("准备完备")
     pool = Pool()
     for period in ["month", "week", "day"]:
         for count in [1, 2, 3, 4, 5, 6, 10, 15, 20, 30]:
@@ -28,10 +36,12 @@ def multi_run():
                         top_down,
                         rebalancer
                     ))
+                    # pool.apply_async(run, args=(period, rebalancer))
     logging.info('Waiting for all subprocesses done...')
     pool.close()
     pool.join()
-    logging.info('All subprocesses done.')
+    cost = time.time() - start
+    logging.info('All subprocesses done. cost {} seconds'.format(int(cost)))
 
 
 if __name__ == '__main__':

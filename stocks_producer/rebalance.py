@@ -41,6 +41,10 @@ class Rebalancer(object):
     def pre_trading_date(self, day):
         return self.__data_proxy__.get_previous_trading_date(day)
 
+    @property
+    def data_proxy(self):
+        return self.__data_proxy__
+
 
 def get_stocks(day, count, level, top_down, helper):
     pre_day = helper.pre_trading_date(day)

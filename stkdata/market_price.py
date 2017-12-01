@@ -12,9 +12,6 @@ import pandas as pd
 import pickle
 import requests
 
-from .data_helper import TFRQAlphaDataBackend, get_int_date
-
-__DATA_PROXY__ = TFRQAlphaDataBackend()
 UNIX_EPOCH = np.datetime64('1970-01-01T00:00:00')
 TIME_DELTA = np.timedelta64(1, 's')
 
@@ -39,10 +36,10 @@ def fetch_stock_price(stock_code, start_day,
         real_start_day_int, datetime2int(day)))[value].values
 
 
-def fetch_market_price(stock_code, start_int, end_int=None):
+def fetch_market_price(data_proxy, stock_code, start_int, end_int=None):
     if end_int is None:
         end_int = start_int
-    return __DATA_PROXY__.get_price(order_book_id=stock_code, start=start_int, end=end_int)
+    return data_proxy.get_price(order_book_id=stock_code, start=start_int, end=end_int)
 
 def fetch_market_price_from_thinkive(stock_code, start_int, end_int=None):
     assert isinstance(start_int, int)
@@ -98,8 +95,8 @@ def fetch_market_price_from_thinkive(stock_code, start_int, end_int=None):
     return df.query("date >= {} and date <= {}".format(start_int, end_int))
 
 
-def trading_dates(start, end):
-    return __DATA_PROXY__.get_trading_dates(start, end)
+def trading_dates(data_proxy, start, end):
+    return data_proxy.get_trading_dates(start, end)
 
 
 def int2datetime(int_day):

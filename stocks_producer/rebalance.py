@@ -10,7 +10,7 @@ from stkdata.data_helper import TFRQAlphaDataBackend
 
 
 class Rebalancer(object):
-    def __init__(self):
+    def __init__(self, data_proxy):
         self.scores = pd.read_csv("score.csv", sep=",",
                      usecols =[
                          "composite_score",
@@ -23,9 +23,8 @@ class Rebalancer(object):
                          "date": np.int,
                          "indu_num": np.int})
 
-        __data_proxy__ = TFRQAlphaDataBackend()
         def market_dates(stk_code, day):
-            return __data_proxy__.market_days_from_listed(stk_code, day)
+            return data_proxy.market_days_from_listed(stk_code, day)
 
         self.dates = self.scores.date.unique()
         self.__stocks_set__ = self.scores["sec_ucode"].unique()
@@ -37,18 +36,10 @@ class Rebalancer(object):
                     self.stocks_days_from_listed[stk] = {}
                 self.stocks_days_from_listed[stk][day] = market_dates(stk, day)
         print("初始化完成上市交易日数")
-        
-    @staticmethod
-    def pre_trading_date(day):   # 背后依赖的RQAlpha Data Proxy不支持浅拷贝，需要深拷贝或重新构建新对象
-        return TFRQAlphaDataBackend().get_previous_trading_date(day)
-
-    @staticmethod
-    def data_proxy():
-        return TFRQAlphaDataBackend()
 
 
-def get_stocks(day, count, level, top_down, helper):
-    pre_day = helper.pre_trading_date(day)
+def get_stocks(day, count, level, top_down, helper, data_proxy):
+    pre_day = data_proxy.get_previous_trading_date(day)
     if isinstance(pre_day, datetime.datetime):
         pre_day = pre_day.year*10000 + pre_day.month * 100 + pre_day.day
     if helper.dates.min() > pre_day:

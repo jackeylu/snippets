@@ -6,7 +6,7 @@
 import glob
 import os
 import pandas as pd
-import stkdata
+from stkdata import TFRQAlphaDataBackend, fetch_market_price
 
 
 def extract_tags_from_filename(filename):
@@ -17,6 +17,7 @@ def extract_tags_from_filename(filename):
 
 def merge(filenames):
     # bench_df = None
+    data_proxy = TFRQAlphaDataBackend()
     df = None
     for filename in filenames:
         tag = extract_tags_from_filename(filename)
@@ -26,7 +27,7 @@ def merge(filenames):
         df1.columns = [tag]
         df = pd.concat([df, df1], axis=1)
 
-    bench = pd.DataFrame(data=stkdata.fetch_market_price('000001.XSHG', 20170807, 20171117))
+    bench = pd.DataFrame(data=fetch_market_price(data_proxy, '000001.XSHG', 20170807, 20171117))
     bench["datetime"] = bench["datetime"] // 1000000
     bench.columns = ["date",
                      "open",

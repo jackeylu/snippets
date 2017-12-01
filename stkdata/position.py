@@ -7,9 +7,7 @@ import logging
 import pandas as pd
 import numpy as np
 from .market_price import fetch_market_price, int2datetime
-from .data_helper import TFRQAlphaDataBackend
 
-__data_proxy__ = TFRQAlphaDataBackend()
 
 class Positions(object):
     def __init__(self):
@@ -54,7 +52,7 @@ def need_rebalance(period, day, last_day):
         return day != last_day
 
 
-def rebalance(positions, new_stocks_info, day):
+def rebalance(positions, new_stocks_info, day, data_proxy):
     current_stocks_info = positions.current_stocks_info
     positions.current_stocks_info.clear()
     if len(new_stocks_info) != 0:
@@ -72,7 +70,9 @@ def rebalance(positions, new_stocks_info, day):
         else:
             raise ValueError("Unknown type ", stock)
         try:
-            ndarray = fetch_market_price(stock_code=stock_code, start_int=day)
+            ndarray = fetch_market_price(data_proxy=data_proxy,
+                                         stock_code=stock_code,
+                                         start_int=day)
         except KeyError:
             continue   # 去掉未
         row = list(ndarray.tolist()[0])
@@ -83,18 +83,18 @@ def rebalance(positions, new_stocks_info, day):
         positions.log([stock_code, score], ndarray)
 
 
-def update_balance(positions, day):
+def update_balance(positions, day, data_proxy):
     # day = datetime2int(day)
     for stock in positions.current_stocks_info:
         # FIXME ndarray[0] != day，比如`day`日停牌了，那么返回的就是之前的价格
-        if __data_proxy__.is_suspended(stock, day):
+        if data_proxy.is_suspended(stock, day):
             continue
-        ndarray = fetch_market_price(stock_code=stock, start_int=day)
+        ndarray = fetch_market_price(data_proxy=data_proxy, stock_code=stock, start_int=day)
         positions.log([stock, None], ndarray)
 
 
 def position_perform(period, trading_dates, count, level,
-                     top_down, helper, stocks_getter):
+                     top_down, helper, data_proxy, stocks_getter):
     positions = Positions()
     last_rebalance_day = None
     for i, day in enumerate(trading_dates):
@@ -102,10 +102,10 @@ def position_perform(period, trading_dates, count, level,
                 or need_rebalance(period, day, last_rebalance_day):
             logging.info("Rebalance on %s", day)
             new_stocks = stocks_getter(day, count, level,
-                                       top_down, helper)
-            rebalance(positions, new_stocks, day)
+                                       top_down, helper, data_proxy)
+            rebalance(positions, new_stocks, day, data_proxy)
             last_rebalance_day = day
         else:
-            update_balance(positions, day)
+            update_balance(positions, day, data_proxy)
 
     return positions

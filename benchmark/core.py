@@ -4,11 +4,12 @@
 # @author: ME
 # @date: 2017/11/30
 import os
+import gc
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import stkdata
-from stkdata.data_helper import get_int_date
+from stkdata import get_int_date, TFRQAlphaDataBackend, \
+    trading_dates, position_perform, fetch_market_price
 from stocks_producer.rebalance import get_stocks
 
 plt.rcParams['font.sans-serif'] = ['SimHei']  # 用来正常显示中文标签
@@ -16,8 +17,27 @@ plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
 plt.style.use('ggplot')
 
 
+def build_bench(data_proxy, start, end):
+    bench_df = pd.DataFrame(data=fetch_market_price(data_proxy,
+                                                    '000001.XSHG',
+                                                    start,
+                                                    end))
+    bench_df["datetime"] = bench_df["datetime"] // 1000000
+    bench_df.columns = ["date",
+                        "open",
+                        "close",
+                        "high",
+                        "low",
+                        "volume",
+                        "turnover"]
+    bench_df["date"] = pd.to_datetime(bench_df["date"].apply(lambda x: "{}".format(x)))
+    bench_df.set_index(keys=["date"], inplace=True)
+    bench_df["pre_close"] = bench_df["close"].shift()
+    return bench_df
+
+
 def choose_core(period, count, start, end, level, top_down,
-                  rebalancer):
+                  rebalancer, bench_df):
     prefix = "{}_level-{}_count-{}_top_down-{}_{}-{}".format(
         period, level, count, top_down, start, end)
     print('Run task %s (pid %s)...' % (prefix, os.getpid()))
@@ -26,22 +46,25 @@ def choose_core(period, count, start, end, level, top_down,
         print("lack of parameters, see `--help`")
         return
 
-    trading_dates = stkdata.trading_dates(start, end)
-    positions = stkdata.position_perform(period,
-                                         trading_dates,
-                                         count,
-                                         level,
-                                         top_down,
-                                         rebalancer,
-                                         stocks_getter=get_stocks)
+    data_proxy = TFRQAlphaDataBackend()
+    __trading_dates = trading_dates(data_proxy=data_proxy, start=start, end=end)
+    positions = position_perform(period,
+                                 __trading_dates,
+                                 count,
+                                 level,
+                                 top_down,
+                                 rebalancer,
+                                 data_proxy,
+                                 stocks_getter=get_stocks)
     df_positions = positions.to_df()
+    del positions
+
     df_positions.to_csv("raw_result/{}_positions_raw.csv".format(prefix))
     # print(os.path.abspath("raw_result/{}_positions_raw.csv".format(prefix)))
 
     df_positions["date"] = pd.to_datetime(df_positions["date"].apply(lambda x: "{}".format(x)))
     # df_positions.set_index(keys=["date"])
 
-    data_proxy = rebalancer.data_proxy()
     def get_pre_close_price(df):
         stock = df["stock"]
         __start = data_proxy.get_previous_trading_date(df["date"])
@@ -57,53 +80,47 @@ def choose_core(period, count, start, end, level, top_down,
     df_positions.to_csv("figure/{}_positions.csv".format(prefix))
     # print(os.path.abspath("figure/{}_positions.csv".format(prefix)))
 
-    bench = pd.DataFrame(data=stkdata.fetch_market_price('000001.XSHG', start, end))
-    bench["datetime"] = bench["datetime"] // 1000000
-    bench.columns = ["date",
-                     "open",
-                     "close",
-                     "high",
-                     "low",
-                     "volume",
-                     "turnover"]
-    bench["date"] = pd.to_datetime(bench["date"].apply(lambda x: "{}".format(x)))
-    bench.set_index(keys=["date"], inplace=True)
-    bench["pre_close"] = bench["close"].shift()
-
     for chosen_price in ["high", "close"]:
         # 涨跌幅 %
         df_positions["up_ratio"] = (df_positions[chosen_price] - df_positions["pre_close"]) * 100 / df_positions["pre_close"]
         index_up_ratio_diff = df_positions[["date", "up_ratio"]].groupby(by=["date"]).mean()
 
-        bench["up_ratio"] = (bench[chosen_price] - bench["pre_close"]) * 100 / bench["pre_close"]
+        bench_df["up_ratio"] = (bench_df[chosen_price] - bench_df["pre_close"]) * 100 / bench_df["pre_close"]
         ff = pd.concat([
             index_up_ratio_diff,
-            bench["up_ratio"]], axis=1)
+            bench_df["up_ratio"]], axis=1)
         ff.columns = ["tf_index_mean_up_ratio",
                       "bench_up_ratio"]
         ff = ff.dropna(axis=0)
         ff.to_csv("figure/{}_{}_up_ratio.csv".format(chosen_price, prefix))
-        print("figure/{}_{}_up_ratio.csv".format(chosen_price, prefix))
+        del ff
+        continue
+
+        # print("figure/{}_{}_up_ratio.csv".format(chosen_price, prefix))
         describe = ff["tf_index_mean_up_ratio"].describe()
 
-        plt.figure()
-        ff.tf_index_mean_up_ratio.plot(legend="index-mean-up-ratio")
-        ff.bench_up_ratio.plot(legend="bench-up-ratio")
-        plt.ylim((-12, 12))
-        plt.ylabel("涨跌幅:%")
-        plt.title("{} 涨跌幅 mean:{}%/std:{}% 调仓周期:{},level {}\n"
-                  "From {}, 股票数:{}, 日期范围:{}-{}".format(
-                    chosen_price,
-                    np.round(describe["mean"], 2),
-                    np.round(describe["std"], 2),
-                    period,
-                    level,
-                    "Top" if top_down else "Down",
-                    count,
-                    start,
-                    end))
-        plt.savefig("figure/{}_{}_up_ratio.png".format(chosen_price, prefix))
-        print("figure/{}_{}_up_ratio.png".format(chosen_price, prefix))
-        plt.close()
+        # plt.figure()
+        # ff.tf_index_mean_up_ratio.plot(legend="index-mean-up-ratio")
+        # ff.bench_up_ratio.plot(legend="bench-up-ratio")
+        # plt.ylim((-12, 12))
+        # plt.ylabel("涨跌幅:%")
+        # plt.title("{} 涨跌幅 mean:{}%/std:{}% 调仓周期:{},level {}\n"
+        #           "From {}, 股票数:{}, 日期范围:{}-{}".format(
+        #             chosen_price,
+        #             np.round(describe["mean"], 2),
+        #             np.round(describe["std"], 2),
+        #             period,
+        #             level,
+        #             "Top" if top_down else "Down",
+        #             count,
+        #             start,
+        #             end))
+        # plt.savefig("figure/{}_{}_up_ratio.png".format(chosen_price, prefix))
+        # # print("figure/{}_{}_up_ratio.png".format(chosen_price, prefix))
+        # plt.close()
+
+    del df_positions
+    count = gc.collect()
+    print("Gc {}".format(count))
     return
 

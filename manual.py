@@ -6,7 +6,8 @@
 import click
 import logging.config
 from stocks_producer.rebalance import Rebalancer
-from benchmark.core import choose_core
+from benchmark.core import choose_core, build_bench
+from stkdata import TFRQAlphaDataBackend
 
 
 @click.command()
@@ -20,9 +21,11 @@ from benchmark.core import choose_core
               type=bool,
               help="股票池中取top count，还是逆序top count。默认逆序（按得分从高到低）")
 def choose(period, count, start, end, level, top_down):
-    rebalancer = Rebalancer()
+    data_proxy = TFRQAlphaDataBackend()
+    bench_df = build_bench(data_proxy, start, end)
+    rebalancer = Rebalancer(data_proxy)
     return choose_core(period, count, start, end, level,
-                         top_down, rebalancer)
+                         top_down, rebalancer, bench_df)
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO,

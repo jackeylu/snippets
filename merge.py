@@ -7,6 +7,8 @@ import glob
 import os
 import pandas as pd
 import re
+from tqdm import tqdm
+
 from stkdata import TFRQAlphaDataBackend
 from benchmark.core import build_bench, draw_up_ratios
 
@@ -21,7 +23,7 @@ def extract_tags_from_filename(filename):
     return tags, chosen_price, period, level, count, top_or_down
 
 
-def merge(filenames):
+def merge_and_draw(filenames):
     # bench_df = None
     start_date = 20170806
     end_date = 20171117
@@ -33,7 +35,7 @@ def merge(filenames):
     bench_df["close_up_ratio"] = (bench_df["close"] - bench_df["pre_close"]) * 100 / bench_df["pre_close"]
     bench_df["high_up_ratio"] = (bench_df["high"] - bench_df["pre_close"]) * 100 / bench_df["pre_close"]
 
-    for filename in filenames:
+    for filename in tqdm(filenames):
         tags = extract_tags_from_filename(filename)
         single_df = pd.read_csv(filename, sep=',', index_col='date',
                           usecols=["date", "tf_index_mean_up_ratio"],
@@ -62,7 +64,7 @@ def merge(filenames):
 
 if __name__ == '__main__':
     finals = glob.glob("ratios/*_up_ratio.csv")
-    merged_high_df, merged_close_df = merge(filenames=finals)
+    merged_high_df, merged_close_df = merge_and_draw(filenames=finals)
 
     def summary(df, prefix):
         df.to_csv("{}_all_mean_up_ratio.csv".format(prefix))

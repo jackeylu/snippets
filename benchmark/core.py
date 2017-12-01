@@ -6,8 +6,9 @@
 import os
 import gc
 import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
+
 from stkdata import get_int_date, TFRQAlphaDataBackend, \
     trading_dates, position_perform, fetch_market_price
 from stocks_producer.rebalance import get_stocks
@@ -15,6 +16,16 @@ from stocks_producer.rebalance import get_stocks
 plt.rcParams['font.sans-serif'] = ['SimHei']  # 用来正常显示中文标签
 plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
 plt.style.use('ggplot')
+
+
+def create_dir_if_not_exists(dirnames):
+    for dirname in dirnames:
+        if not os.path.exists(dirname) or not os.path.isdir(dirname):
+            print("Creating directory {}".format(dirname))
+            os.makedirs(dirname)
+
+
+create_dir_if_not_exists(["positions", "ratios", "figures"])
 
 
 def build_bench(data_proxy, start, end):
@@ -57,8 +68,9 @@ def draw_up_ratios(single_series, bench_series, tags, start, end):
                 count=count,
                 start=start,
                 end=end))
-    plt.savefig("figures/{}_{}_up_ratio.png".format(chosen_price, prefix))
+    plt.savefig("figures/{}_up_ratio.png".format(prefix))
     plt.close()
+
 
 def choose_core(period, count, start, end, level, top_down,
                   rebalancer, bench_df):
@@ -83,11 +95,8 @@ def choose_core(period, count, start, end, level, top_down,
     df_positions = positions.to_df()
     del positions
 
-    df_positions.to_csv("raw_result/{}_positions_raw.csv".format(prefix))
-    # print(os.path.abspath("raw_result/{}_positions_raw.csv".format(prefix)))
-
+    df_positions.to_csv("positions/{}_positions_raw.csv".format(prefix))
     df_positions["date"] = pd.to_datetime(df_positions["date"].apply(lambda x: "{}".format(x)))
-    # df_positions.set_index(keys=["date"])
 
     def get_pre_close_price(df):
         stock = df["stock"]
@@ -101,7 +110,7 @@ def choose_core(period, count, start, end, level, top_down,
             return None
 
     df_positions["pre_close"] = df_positions.apply(get_pre_close_price, axis=1)
-    df_positions.to_csv("figure/{}_positions.csv".format(prefix))
+    df_positions.to_csv("positions/{}_positions.csv".format(prefix))
     # print(os.path.abspath("figure/{}_positions.csv".format(prefix)))
 
     for chosen_price in ["high", "close"]:
@@ -116,7 +125,7 @@ def choose_core(period, count, start, end, level, top_down,
         ff.columns = ["tf_index_mean_up_ratio",
                       "bench_up_ratio"]
         ff = ff.dropna(axis=0)
-        ff.to_csv("figure/{}_{}_up_ratio.csv".format(chosen_price, prefix))
+        ff.to_csv("ratios/{}_{}_up_ratio.csv".format(chosen_price, prefix))
         del ff
 
     del df_positions

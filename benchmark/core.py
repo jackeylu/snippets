@@ -91,14 +91,14 @@ def choose_core(period, count, start, end, level, top_down,
         ff.bench_up_ratio.plot(legend="bench-up-ratio")
         plt.ylim((-12, 12))
         plt.ylabel("涨跌幅:%")
-        plt.title("{} based 涨跌幅 mean:{}%/std:{}% 调仓周期: {}, level {} \n"
-                  "top-down: {}, 股票数: {}, 日期范围: {}-{}".format(
+        plt.title("{} 涨跌幅 mean:{}%/std:{}% 调仓周期:{},level {}\n"
+                  "From {}, 股票数:{}, 日期范围:{}-{}".format(
                     chosen_price,
                     np.round(describe["mean"], 2),
                     np.round(describe["std"], 2),
                     period,
                     level,
-                    top_down,
+                    "Top" if top_down else "Down",
                     count,
                     start,
                     end))

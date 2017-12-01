@@ -13,8 +13,8 @@ from benchmark.core import choose_core
 @click.option('--period', default="month", type=click.Choice(["month", "week", "day"]),
               help="调仓周期，分为每月初、每周初、每交易日三种类型")
 @click.option('--count', default=5, help='最大持仓个股数量.')
-@click.option('--start', type=int, help='start day, like 20170501')
-@click.option('--end', type=int, help='end day, like 20171123')
+@click.option('--start', default=20170807, type=int, help='start day, like 20170501')
+@click.option('--end', default=20171117, type=int, help='end day, like 20171123')
 @click.option('--level', default=0, type=int, help='levels in {0,1,2,...,9}')
 @click.option('--top_down', default=False,
               type=bool,

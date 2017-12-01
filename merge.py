@@ -6,47 +6,71 @@
 import glob
 import os
 import pandas as pd
-from stkdata import TFRQAlphaDataBackend, fetch_market_price
+import re
+from stkdata import TFRQAlphaDataBackend
+from benchmark.core import build_bench, draw_up_ratios
 
 
 def extract_tags_from_filename(filename):
     basename = os.path.basename(filename)
-    # final_Period-day_count-1_level-0_ascending-False_start-20170801_end-20171117.csv
-    return basename[len("final_"):len(basename) - len("_start-20170801_end-20171117.csv")]
+    # close_day_level-0_count-1_top_down-False_20170806-20171117_up_ratio.csv
+    # high_day_level-0_count-1_top_down-False_20170806-20171117_up_ratio.csv
+    tags = basename[:len(basename) - len("_20170806-20171117_up_ratio.csv")]
+    chosen_price, period, level, count, top_or_down = \
+        re.search("(.*)_(.*)_level-(.*)_count-(.*)_top_down-(.*)", tags).groups()
+    return tags, chosen_price, period, level, count, top_or_down
 
 
 def merge(filenames):
     # bench_df = None
+    start_date = 20170806
+    end_date = 20171117
     data_proxy = TFRQAlphaDataBackend()
-    df = None
+    merged_close_df = None
+    merged_high_df = None
+
+    bench_df = build_bench(data_proxy, start_date, end_date)
+    bench_df["close_up_ratio"] = (bench_df["close"] - bench_df["pre_close"]) * 100 / bench_df["pre_close"]
+    bench_df["high_up_ratio"] = (bench_df["high"] - bench_df["pre_close"]) * 100 / bench_df["pre_close"]
+
     for filename in filenames:
-        tag = extract_tags_from_filename(filename)
-        df1 = pd.read_csv(filename, sep=',', index_col='date',
+        tags = extract_tags_from_filename(filename)
+        single_df = pd.read_csv(filename, sep=',', index_col='date',
                           usecols=["date", "tf_index_mean_up_ratio"],
                           parse_dates=["date"])
-        df1.columns = [tag]
-        df = pd.concat([df, df1], axis=1)
 
-    bench = pd.DataFrame(data=fetch_market_price(data_proxy, '000001.XSHG', 20170807, 20171117))
-    bench["datetime"] = bench["datetime"] // 1000000
-    bench.columns = ["date",
-                     "open",
-                     "close",
-                     "high",
-                     "low",
-                     "volume",
-                     "turnover"]
-    bench["date"] = pd.to_datetime(bench["date"].apply(lambda x: "{}".format(x)))
-    bench.set_index(keys=["date"], inplace=True)
-    bench["pre_close"] = bench["close"].shift()
-    bench["up_ratio"] = (bench["close"] - bench["pre_close"]) * 100 / bench["pre_close"]
-    df = pd.concat([df, bench["up_ratio"]], axis=1)
-    return df
+
+        if tags[1] == "close":
+            # Draws
+            draw_up_ratios(single_df["tf_index_mean_up_ratio"],
+                           bench_df["close_up_ratio"], tags, start_date, end_date)
+
+            single_df.columns = [tags[0]]
+            merged_close_df = pd.concat([merged_close_df, single_df], axis=1)
+        elif tags[1] == "high":
+            # Draws
+            draw_up_ratios(single_df["tf_index_mean_up_ratio"],
+                           bench_df["high_up_ratio"], tags, start_date, end_date)
+
+            single_df.columns = [tags[0]]
+            merged_high_df = pd.concat([merged_high_df, single_df], axis=1)
+
+    merged_high_df = pd.concat([merged_high_df, bench_df["high_up_ratio"]], axis=1)
+    merged_close_df = pd.concat([merged_close_df, bench_df["close_up_ratio"]], axis=1)
+    return merged_high_df, merged_close_df
 
 
 if __name__ == '__main__':
-    finals = glob.glob("figure/final_*.csv")
-    df = merge(filenames=finals)
-    df.to_csv("all_mean_up_ratio.csv")
-    df.describe().T.sort_values(by="mean", ascending=False).to_csv("describes.T.csv")
-    df.describe().to_csv("describes.csv")
+    finals = glob.glob("ratios/*_up_ratio.csv")
+    merged_high_df, merged_close_df = merge(filenames=finals)
+
+    def summary(df, prefix):
+        df.to_csv("{}_all_mean_up_ratio.csv".format(prefix))
+        des = df.describe()
+        des.T.sort_values(by="mean", ascending=False).to_csv("{}_summary.T.csv".format(prefix))
+        des.to_csv("{}_summary.csv".format(prefix))
+
+    summary(merged_high_df, "high")
+    summary(merged_close_df, "close")
+
+

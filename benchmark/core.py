@@ -36,6 +36,30 @@ def build_bench(data_proxy, start, end):
     return bench_df
 
 
+def draw_up_ratios(single_series, bench_series, tags, start, end):
+    describe = single_series.describe()
+    chosen_price, period, level, count, top_down  = tags[1:]
+    prefix = tags[0]
+
+    plt.figure()
+    single_series.plot(legend="index-mean-up-ratio")
+    bench_series.plot(legend="bench-up-ratio")
+    plt.ylim((-12, 12))
+    plt.ylabel("涨跌幅:%")
+    plt.title("{chosen_price} 涨跌幅 mean:{mean}%/std:{std}% 调仓周期:{period},level {level}\n"
+              "From {top_down}, 股票数:{count}, 日期范围:{start}-{end}".format(
+                chosen_price=chosen_price,
+                mean=np.round(describe["mean"], 2),
+                std=np.round(describe["std"], 2),
+                period=period,
+                level=level,
+                top_down= "Top" if top_down == 'True' else "Down",
+                count=count,
+                start=start,
+                end=end))
+    plt.savefig("figures/{}_{}_up_ratio.png".format(chosen_price, prefix))
+    plt.close()
+
 def choose_core(period, count, start, end, level, top_down,
                   rebalancer, bench_df):
     prefix = "{}_level-{}_count-{}_top_down-{}_{}-{}".format(
@@ -94,30 +118,6 @@ def choose_core(period, count, start, end, level, top_down,
         ff = ff.dropna(axis=0)
         ff.to_csv("figure/{}_{}_up_ratio.csv".format(chosen_price, prefix))
         del ff
-        continue
-
-        # print("figure/{}_{}_up_ratio.csv".format(chosen_price, prefix))
-        describe = ff["tf_index_mean_up_ratio"].describe()
-
-        # plt.figure()
-        # ff.tf_index_mean_up_ratio.plot(legend="index-mean-up-ratio")
-        # ff.bench_up_ratio.plot(legend="bench-up-ratio")
-        # plt.ylim((-12, 12))
-        # plt.ylabel("涨跌幅:%")
-        # plt.title("{} 涨跌幅 mean:{}%/std:{}% 调仓周期:{},level {}\n"
-        #           "From {}, 股票数:{}, 日期范围:{}-{}".format(
-        #             chosen_price,
-        #             np.round(describe["mean"], 2),
-        #             np.round(describe["std"], 2),
-        #             period,
-        #             level,
-        #             "Top" if top_down else "Down",
-        #             count,
-        #             start,
-        #             end))
-        # plt.savefig("figure/{}_{}_up_ratio.png".format(chosen_price, prefix))
-        # # print("figure/{}_{}_up_ratio.png".format(chosen_price, prefix))
-        # plt.close()
 
     del df_positions
     count = gc.collect()

@@ -6,22 +6,39 @@
 import datetime
 import numpy as np
 import pandas as pd
-from stkdata.data_helper import TFRQAlphaDataBackend
 
 
 class Rebalancer(object):
-    def __init__(self, data_proxy):
-        self.scores = pd.read_csv("score.csv", sep=",",
-                     usecols =[
-                         "composite_score",
-                         "sec_ucode",
-                         "date",
-                         "indu_num"],
-                     dtype={
-                         "composite_score":np.float32,
-                         "sec_ucode": np.str,
-                         "date": np.int,
-                         "indu_num": np.int})
+    def __init__(self, data_proxy, revised=True):
+        if revised:
+            filename = "revised-scores.csv"
+            cols = ["修正总分", "sec_ucode",
+                    "date","indu_num"]
+            dtype = {
+                "修正总分": np.float32,
+                "sec_ucode": np.str,
+                "date": np.int,
+                "indu_num": np.int}
+            encoding="gb2312"
+        else:
+            filename = "score.csv"
+            cols = ["composite_score", "sec_ucode",
+                    "date","indu_num"]
+            dtype = {
+                "composite_score": np.float32,
+                "sec_ucode": np.str,
+                "date": np.int,
+                "indu_num": np.int}
+            encoding="utf-8"
+
+        self.scores = pd.read_csv(filename,
+                                  sep=",",
+                                  usecols=cols,
+                                  dtype=dtype,
+                                  encoding=encoding)
+        self.scores["composite_score"] = self.scores["修正总分"]
+        kept_columns = ["composite_score", "sec_ucode","date","indu_num"]
+        self.scores = self.scores[kept_columns]
 
         def market_dates(stk_code, day):
             return data_proxy.market_days_from_listed(stk_code, day)
